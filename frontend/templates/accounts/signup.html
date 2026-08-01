@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Sign up · Triage{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card card">
+    <div class="logo logo-lg logo-center">
+      {% include "partials/logo_icon.html" %}
+      <span class="logo-text">Triage</span>
+    </div>
+    <h1>Create account</h1>
+    <p class="subtitle">Get a workspace and start extracting action items.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">{{ field.help_text }}</div>{% endif %}
+        {% if field.errors %}<div style="color:var(--danger);font-size:0.8125rem;margin-top:0.25rem;">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary" style="width:100%;">Create account</button>
+    </form>
+    <p class="auth-footer">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+  </div>
+</div>
+{% endblock %}

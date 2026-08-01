@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Settings · Triage{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:640px;">
+  <div class="page-header">
+    <h1>Workspace settings</h1>
+    <p>Choose where approved tickets get pushed. Credentials are encrypted at rest.</p>
+  </div>
+
+  <form method="post" class="card">
+    {% csrf_token %}
+    <h2 style="font-size:1.1rem; margin-bottom:1.1rem;">Ticket tracker</h2>
+
+    <div class="form-group">
+      <label for="tracker_type">Tracker</label>
+      <select name="tracker_type" id="tracker_type" onchange="toggleTrackerFields()">
+        <option value="linear" {% if settings.tracker_type == 'linear' %}selected{% endif %}>Linear</option>
+        <option value="jira" {% if settings.tracker_type == 'jira' %}selected{% endif %}>Jira</option>
+      </select>
+    </div>
+
+    <div id="linear-fields">
+      <div class="form-group">
+        <label for="linear_api_key">Linear API key</label>
+        <input type="password" name="linear_api_key" id="linear_api_key" value="{{ linear_api_key }}" placeholder="lin_api_...">
+        <div class="form-hint">Linear &rarr; Settings &rarr; Security &amp; access &rarr; Personal API keys</div>
+        <button type="button" class="btn btn-secondary" style="margin-top:0.6rem;" id="test-linear-btn" onclick="testLinear()">Test connection</button>
+        <div id="linear-test-result" class="test-result"></div>
+      </div>
+      <div class="form-group">
+        <label for="linear_team_id">Linear team</label>
+        <select name="linear_team_id" id="linear_team_id">
+        <option value="">Select team</option>
+        {% for team in linear_teams %}
+          <option value="{{ team.id }}" {% if settings.linear_team_id == team.id %}selected{% endif %}>
+            {{ team.name }} ({{ team.key }})
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-hint">Click "Test connection" above to load your teams, then pick one. Required for pushing and backlog matching.</div>
+      </div>
+    </div>
+
+    <div id="jira-fields" class="hidden">
+      <div class="form-group">
+        <label for="jira_url">Atlassian site URL</label>
+        <input type="text" name="jira_url" id="jira_url" value="{{ jira_url }}" placeholder="yourteam.atlassian.net">
+        <div class="form-hint">Just the domain, with or without https://, both work</div>
+      </div>
+      <div class="form-group">
+        <label for="jira_email">Account email</label>
+        <input type="email" name="jira_email" id="jira_email" value="{{ jira_email }}">
+      </div>
+      <div class="form-group">
+        <label for="jira_token">API token</label>
+        <input type="password" name="jira_token" id="jira_token" value="{{ jira_token }}">
+        <div class="form-hint">Create one at id.atlassian.com &rarr; Security &rarr; API tokens</div>
+        <button type="button" class="btn btn-secondary" style="margin-top:0.6rem;" id="test-jira-btn" onclick="testJira()">Test connection</button>
+        <div id="jira-test-result" class="test-result"></div>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:1.25rem;">
+      <label style="display:flex; align-items:center; gap:0.55rem; font-size:0.95rem; font-weight:500; color:var(--text);">
+        <input type="checkbox" name="auto_approve_high_confidence" {% if settings.auto_approve_high_confidence %}checked{% endif %}>
+        Auto-approve high-confidence items (&ge;85%, grounded)
+      </label>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save settings</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleTrackerFields() {
+  const type = document.getElementById('tracker_type').value;
+  document.getElementById('linear-fields').classList.toggle('hidden', type !== 'linear');
+  document.getElementById('jira-fields').classList.toggle('hidden', type !== 'jira');
+}
+toggleTrackerFields();
+
+function runTest(btn, result, url, fields, onSuccess) {
+  btn.disabled = true;
+  result.style.color = 'var(--text-muted)';
+  result.textContent = 'Testing…';
+  const fd = new FormData();
+  fields.forEach(id => fd.append(id, document.getElementById(id).value));
+  fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+  fetch(url, { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        result.style.color = 'var(--success)';
+        onSuccess(data);
+      } else {
+        result.style.color = 'var(--danger)';
+        result.textContent = data.error;
+      }
+    })
+    .catch(e => { result.style.color = 'var(--danger)'; result.textContent = e.message; })
+    .finally(() => { btn.disabled = false; });
+}
+
+function testLinear() {
+  const result = document.getElementById('linear-test-result');
+  runTest(document.getElementById('test-linear-btn'), result,
+    '{% url "test_linear" %}', ['linear_api_key'],
+    data => {
+      result.textContent = 'Connected as ' + data.viewer + '. ' + data.teams.length + ' team(s) loaded below.';
+      const sel = document.getElementById('linear_team_id');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">Select team</option>';
+      data.teams.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name + ' (' + t.key + ')';
+        if (t.id === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+}
+
+function testJira() {
+  const result = document.getElementById('jira-test-result');
+  runTest(document.getElementById('test-jira-btn'), result,
+    '{% url "test_jira" %}', ['jira_url', 'jira_email', 'jira_token'],
+    data => { result.textContent = 'Connected as ' + data.viewer; });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Log in · Triage{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card card">
+    <div class="logo logo-lg logo-center">
+      {% include "partials/logo_icon.html" %}
+      <span class="logo-text">Triage</span>
+    </div>
+    <h1>Welcome back</h1>
+    <p class="subtitle">Sign in to review and push meeting action items.</p>
+    <form method="post">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}<div style="color:var(--danger);font-size:0.8125rem;margin-top:0.25rem;">{{ field.errors.0 }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary" style="width:100%;">Log in</button>
+    </form>
+    <p class="auth-footer">No account? <a href="{% url 'signup' %}">Sign up</a></p>
+  </div>
+</div>
+{% endblock %}

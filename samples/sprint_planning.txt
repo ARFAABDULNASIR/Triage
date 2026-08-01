@@ -1,0 +1,10 @@
+[00:05:00] PM: Welcome to sprint planning. Our goal is to ship the billing module.
+[00:05:30] Dev1: I think we should use Mongo for the invoice store.
+[00:06:00] Dev2: Actually let's use Postgres — we already have it for users and it's easier to join.
+[00:06:20] PM: Agreed, Postgres it is. Dev1, you'll implement the invoice schema by end of week.
+[00:06:45] Dev1: I'll create the invoice tables and migration by Friday.
+[00:07:10] Dev2: I will build the Stripe webhook handler and deploy to staging by Thursday.
+[00:07:40] PM: QA needs to write integration tests for the payment flow before we release.
+[00:08:00] QA: I'll draft the test plan and share it tomorrow morning.
+[00:08:30] PM: Let's also follow up with legal about the updated terms of service.
+[00:08:50] Dev2: I can email legal today and get a response by next week.

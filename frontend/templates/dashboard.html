@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard · Triage{% endblock %}
+
+{% block content %}
+<div class="container-wide">
+  <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1>Your meetings</h1>
+      <p>Drop in a recording, document, or transcript. Review the extracted action items, then push them to your tracker.</p>
+    </div>
+    <a href="{% url 'session_new' %}" class="btn btn-primary btn-lg">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+      New meeting
+    </a>
+  </div>
+
+  {% if stats.meetings %}
+  <div class="stat-strip">
+    <div class="stat">
+      <div class="stat-value">{{ stats.meetings }}</div>
+      <div class="stat-label">Meetings processed</div>
+    </div>
+    <div class="stat accent">
+      <div class="stat-value">{{ stats.tickets }}</div>
+      <div class="stat-label">Action items extracted</div>
+    </div>
+    <div class="stat good">
+      <div class="stat-value">{{ stats.approved }}</div>
+      <div class="stat-label">Approved</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ stats.pushed }}</div>
+      <div class="stat-label">Pushed to tracker</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card" style="padding:0; overflow:hidden;">
+    {% if sessions %}
+    <ul class="session-list">
+      {% for s in sessions %}
+      <li class="session-row">
+        <a href="{% url 'session_review' s.pk %}" class="session-item">
+          <span class="session-type-icon">
+            {% if s.input_type == 'audio' %}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+            {% elif s.input_type == 'document' %}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+            {% else %}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6.1H3"/><path d="M21 12.1H3"/><path d="M15.1 18H3"/></svg>
+            {% endif %}
+          </span>
+          <div class="session-item-main">
+            <span class="title-link">{{ s.title }}</span>
+            <div class="session-meta">
+              {{ s.created_at|date:"M j, Y g:i A" }} · {{ s.get_input_type_display }}
+              {% if s.status == 'failed' %} · <span style="color:var(--danger);">{{ s.error_message|truncatechars:70 }}</span>{% endif %}
+            </div>
+          </div>
+          {% if s.status == 'failed' %}
+          <span class="session-item-count" style="color:var(--danger);">Open to retry &rarr;</span>
+          {% else %}
+          <span class="session-item-count">{{ s.ticket_count }} item{{ s.ticket_count|pluralize }}</span>
+          {% endif %}
+          <span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span>
+        </a>
+        <form method="post" action="{% url 'session_delete' s.pk %}" class="session-delete-form"
+              onsubmit="return confirm('Delete &quot;{{ s.title|escapejs }}&quot; and all its tickets? This cannot be undone.');">
+          {% csrf_token %}
+          <button type="submit" class="session-delete-btn" title="Delete this meeting" aria-label="Delete this meeting">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          </button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+      <p style="font-weight:600; color:var(--text-secondary);">No meetings yet</p>
+      <p style="margin-top:0.35rem; font-size:0.875rem;">Upload your first recording or transcript to see it turned into tickets.</p>
+      <a href="{% url 'session_new' %}" class="btn btn-primary" style="margin-top:1.25rem;">Start your first meeting</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

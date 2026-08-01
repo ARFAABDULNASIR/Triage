@@ -1,0 +1,19 @@
+<div class="card" style="margin-top:1rem;">
+  {% if result.error %}
+  <p style="color:var(--danger);">{{ result.error }}</p>
+  {% else %}
+  <p><strong>{{ result.pushed }}</strong> pushed, <strong>{{ result.failed }}</strong> failed.</p>
+  {% if result.created or result.updated %}
+  <p style="font-size:0.875rem; color:var(--text-muted); margin-top:0.5rem;">
+    {{ result.created }} new · {{ result.updated }} updated · {{ result.linked }} linked · {{ result.skipped }} skipped
+  </p>
+  {% endif %}
+  <ul style="margin-top:0.75rem; font-size:0.875rem; color:var(--text-muted);">
+    {% for r in result.results %}
+    <li>
+      {% if r.ok %}✓ {{ r.issue_key }} · {{ r.title|truncatechars:60 }}{% if r.action %} ({{ r.action }}){% endif %}{% else %}<span style="color:var(--danger);">✗ "{{ r.title|truncatechars:60 }}" was not pushed: {{ r.error }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

@@ -1,0 +1,8 @@
+[00:00:05] Host: Hello everyone, how is everyone doing today?
+[00:00:30] Guest: Good thanks, nice to meet you all.
+[00:01:00] Host: So we were thinking about maybe doing something with the website at some point.
+[00:01:30] Guest: Yeah that could be interesting. What do you think?
+[00:02:00] Host: I'm not sure yet, let's discuss offline.
+[00:02:30] Guest: Sounds good. Can you hear me okay?
+[00:03:00] Host: I'll send you the contract draft by end of day tomorrow.
+[00:03:30] Guest: Perfect. Talk soon!

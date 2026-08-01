@@ -1,0 +1,8 @@
+[00:00:12] Alex: Good morning everyone, thanks for joining.
+[00:00:45] Sam: Let's do a quick standup. I'll go first — I finished the auth refactor yesterday.
+[00:01:20] Alex: Nice. I will send the API documentation to the client by Friday.
+[00:01:45] Sam: Can you also schedule the client demo for next Tuesday?
+[00:02:10] Jordan: I'll prepare the demo deck and share it in Slack by Monday.
+[00:02:30] Alex: Sounds good. We need to migrate the staging database to Postgres before the release.
+[00:02:55] Sam: I'll set up the migration scripts and test them on staging by Wednesday.
+[00:03:15] Jordan: Any questions? No? Great meeting everyone.

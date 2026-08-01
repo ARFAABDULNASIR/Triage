@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}New meeting · Triage{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:660px;">
+  <div class="page-header">
+    <h1>New meeting</h1>
+    <p>Drop in a recording, a document, or a pasted transcript. We'll turn it into reviewable action items.</p>
+  </div>
+
+  {% if not llm_configured %}
+  <div class="provider-note">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>No AI key configured, so extraction will use the built-in local engine. For best results, add a free <strong>GROQ_API_KEY</strong> (console.groq.com) to <code>.env</code> and restart.</span>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'session_upload' %}" enctype="multipart/form-data" class="card" id="upload-form">
+    {% csrf_token %}
+
+    {% if error %}
+    <div class="message message-error" style="margin-bottom:1rem;">{{ error }}</div>
+    {% endif %}
+
+    <div class="form-group">
+      <label for="title">Meeting title</label>
+      <input type="text" name="title" id="title" placeholder="Sprint planning, June 29" autocomplete="off">
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="file" role="tab" onclick="switchTab('file')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+        Upload a file
+      </button>
+      <button type="button" class="tab" data-tab="transcript" role="tab" onclick="switchTab('transcript')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6.1H3"/><path d="M21 12.1H3"/><path d="M15.1 18H3"/></svg>
+        Paste transcript
+      </button>
+    </div>
+
+    <input type="hidden" name="input_type" id="input_type" value="file">
+
+    <div id="panel-file" class="tab-panel active">
+      <div class="dropzone" id="dropzone">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+        <div class="dropzone-title">Drag &amp; drop or <span>browse</span></div>
+        <div class="dropzone-hint">
+          Documents (.pdf, .docx, .txt, max 25MB) or recordings, audio &amp; video
+          (.mp3, .wav, .m4a, .mp4, .mov, .webm and more, max 100MB, transcribed automatically)
+        </div>
+        <input type="file" name="file" id="file-input"
+               accept=".pdf,.docx,.txt,.mp3,.wav,.m4a,.ogg,.flac,.aac,.wma,.mp4,.m4v,.mov,.avi,.mkv,.webm">
+      </div>
+      <div class="file-chip hidden" id="file-chip">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+        <div style="min-width:0;">
+          <div class="file-chip-name" id="file-chip-name"></div>
+          <div class="file-chip-meta" id="file-chip-meta"></div>
+        </div>
+        <button type="button" class="file-chip-remove" id="file-chip-remove" aria-label="Remove file">&times;</button>
+      </div>
+      <div class="form-error hidden" id="file-error"></div>
+    </div>
+
+    <div id="panel-transcript" class="tab-panel">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="transcript">Transcript</label>
+        <textarea name="transcript" id="transcript" placeholder="00:12:34 Alex: I'll send the API docs by Friday.&#10;00:13:10 Sam: Can you also schedule the client demo for next Tuesday?"></textarea>
+        <div class="form-hint">Zoom, Meet, and Teams transcript formats are cleaned up automatically.</div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg" style="width:100%; margin-top:1.25rem;" id="extract-btn">
+      Extract action items
+    </button>
+  </form>
+
+  {% if sample_files %}
+  <div class="card" style="margin-top:1rem;">
+    <h2 style="font-size:0.95rem; margin-bottom:0.35rem;">Just exploring?</h2>
+    <p style="font-size:0.85rem; color:var(--text-muted);">
+      Run a sample meeting through the full review flow. No API key or upload needed.
+    </p>
+    <ul class="sample-list">
+      {% for name in sample_files %}
+      <li>
+        <form method="post" action="{% url 'session_upload' %}" style="display:inline;">
+          {% csrf_token %}
+          <input type="hidden" name="sample_transcript" value="{{ name }}">
+          <input type="hidden" name="title" value="Sample: {{ name }}">
+          <button type="submit" class="btn btn-secondary">{{ name }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DOC_EXTS = ['pdf', 'docx', 'txt'];
+const AUDIO_EXTS = ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma'];
+const VIDEO_EXTS = ['mp4', 'm4v', 'mov', 'avi', 'mkv', 'webm'];
+const MAX_DOC = 25 * 1024 * 1024, MAX_MEDIA = 100 * 1024 * 1024;
+
+function switchTab(name) {
+  document.getElementById('input_type').value = name === 'transcript' ? 'transcript' : 'file';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const chip = document.getElementById('file-chip');
+const fileError = document.getElementById('file-error');
+
+function fmtSize(bytes) {
+  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+}
+
+function kindOf(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (DOC_EXTS.includes(ext)) return 'Document';
+  if (AUDIO_EXTS.includes(ext)) return 'Audio, will be transcribed';
+  if (VIDEO_EXTS.includes(ext)) return 'Video, will be transcribed';
+  return null;
+}
+
+function showError(msg) {
+  fileError.textContent = msg;
+  fileError.classList.toggle('hidden', !msg);
+}
+
+function renderChip() {
+  const f = fileInput.files[0];
+  if (!f) { chip.classList.add('hidden'); dropzone.classList.remove('hidden'); return; }
+  const kind = kindOf(f.name);
+  if (!kind) {
+    fileInput.value = '';
+    showError('Unsupported file type. Use a document, audio, or video file.');
+    return;
+  }
+  const max = kind === 'Document' ? MAX_DOC : MAX_MEDIA;
+  if (f.size > max) {
+    fileInput.value = '';
+    showError('File is too large (limit: ' + fmtSize(max) + ').');
+    return;
+  }
+  showError('');
+  document.getElementById('file-chip-name').textContent = f.name;
+  document.getElementById('file-chip-meta').textContent = kind + ' · ' + fmtSize(f.size);
+  chip.classList.remove('hidden');
+  dropzone.classList.add('hidden');
+}
+
+fileInput.addEventListener('change', renderChip);
+document.getElementById('file-chip-remove').addEventListener('click', () => {
+  fileInput.value = '';
+  renderChip();
+});
+
+['dragenter', 'dragover'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault();
+  dropzone.classList.add('dragover');
+}));
+['dragleave', 'drop'].forEach(ev => dropzone.addEventListener(ev, e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+}));
+dropzone.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    renderChip();
+  }
+});
+
+document.getElementById('upload-form').addEventListener('submit', function (e) {
+  const mode = document.getElementById('input_type').value;
+  if (mode === 'file' && !fileInput.files.length) {
+    e.preventDefault();
+    showError('Choose a file first, or switch to the paste-transcript tab.');
+    return;
+  }
+  if (mode === 'transcript' && !document.getElementById('transcript').value.trim()) {
+    e.preventDefault();
+    return;
+  }
+  const btn = document.getElementById('extract-btn');
+  btn.disabled = true;
+  btn.textContent = fileInput.files[0] && kindOf(fileInput.files[0].name) !== 'Document' && mode === 'file'
+    ? 'Uploading recording…' : 'Extracting…';
+});
+</script>
+{% endblock %}

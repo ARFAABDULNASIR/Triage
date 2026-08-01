@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.title }} · Triage{% endblock %}
+
+{% block content %}
+<div class="container-wide" id="review-page">
+  <div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h1>{{ session.title }}</h1>
+      <p>Review each action item. Nothing is pushed until you approve and click the batch button.</p>
+      {% if session.status != 'processing' and session.extraction_meta %}
+      <p class="meta-line">
+        {% if session.extraction_meta.provider == 'groq' %}Extracted with Groq
+        {% elif session.extraction_meta.provider == 'gemini' %}Extracted with Gemini
+        {% elif session.extraction_meta.provider == 'heuristic' %}Extracted with the local engine (no AI key used)
+        {% endif %}
+        {% if session.extraction_meta.transcription_engine == 'groq-whisper' %} · Transcribed by Whisper (Groq){% endif %}
+        {% if session.extraction_meta.transcription_engine == 'faster-whisper' %} · Transcribed by Whisper (local){% endif %}
+        {% if session.extraction_meta.filtered_count %} · Filtered {{ session.extraction_meta.filtered_count }} weak item{{ session.extraction_meta.filtered_count|pluralize }}{% endif %}
+        {% if session.extraction_meta.deduped_count %} · Deduped {{ session.extraction_meta.deduped_count }}{% endif %}
+      </p>
+      {% endif %}
+    </div>
+    <span class="badge badge-{{ session.status }}">{{ session.get_status_display }}</span>
+  </div>
+
+  {% if session.status == 'processing' %}
+  <div class="card processing-panel"
+       hx-get="{% url 'session_status' session.pk %}"
+       hx-trigger="every 2s"
+       hx-swap="none"
+       id="status-poller">
+    <div class="spinner"></div>
+    <h2 style="font-size:1.1rem; margin-bottom:0.4rem;">Processing your meeting</h2>
+    <p style="color:var(--text-muted); font-size:0.9rem;">
+      {% if session.input_type == 'audio' %}Recordings take a little longer because the audio is transcribed first.{% else %}Usually takes 10 to 30 seconds.{% endif %}
+    </p>
+    <div class="steps" id="steps">
+      {% if session.input_type == 'audio' %}
+      <span class="step" data-stage="transcribing"><span class="step-dot"></span>Transcribe</span>
+      <span class="step-sep">&rarr;</span>
+      {% elif session.input_type == 'document' %}
+      <span class="step" data-stage="reading"><span class="step-dot"></span>Read document</span>
+      <span class="step-sep">&rarr;</span>
+      {% endif %}
+      <span class="step" data-stage="extracting"><span class="step-dot"></span>Extract action items</span>
+      <span class="step-sep">&rarr;</span>
+      <span class="step" data-stage="matching"><span class="step-dot"></span>Match backlog</span>
+    </div>
+    <p class="stage-detail" id="stage-detail">{{ session.processing_detail }}</p>
+    <p class="stage-detail hidden" id="slow-hint">
+      Still working. Free-tier AI providers can rate-limit; the app retries and switches
+      providers automatically, so hang tight.
+    </p>
+  </div>
+
+  {% elif session.status == 'failed' %}
+  <div class="card" style="border-color:#f0cbc7;">
+    <p style="color:var(--danger); font-weight:600; font-size:1.05rem;">Processing failed</p>
+    <p style="color:var(--text-secondary); margin-top:0.5rem;">{{ session.error_message }}</p>
+    <div class="btn-group" style="margin-top:1.25rem;">
+      <form method="post" action="{% url 'session_retry' session.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          Run extraction again
+        </button>
+      </form>
+      <a href="{% url 'session_new' %}" class="btn btn-ghost">Upload a different meeting</a>
+    </div>
+    <p style="font-size:0.85rem; color:var(--text-muted); margin-top:0.875rem;">
+      Retrying reuses your stored {% if session.input_type == 'audio' %}recording{% elif session.input_type == 'document' %}document{% else %}transcript{% endif %}, no need to upload it again.
+    </p>
+  </div>
+
+  {% else %}
+  <div class="stat-strip">
+    <div class="stat">
+      <div class="stat-value">{{ tickets|length }}</div>
+      <div class="stat-label">Action items found</div>
+    </div>
+    <div class="stat good">
+      <div class="stat-value">{{ high_conf_count }}</div>
+      <div class="stat-label">High confidence</div>
+    </div>
+    <div class="stat warn">
+      <div class="stat-value">{{ flagged_count }}</div>
+      <div class="stat-label">Need closer review</div>
+    </div>
+    <div class="stat accent">
+      <div class="stat-value">{{ approved_count }}</div>
+      <div class="stat-label">Approved</div>
+    </div>
+  </div>
+
+  {% if has_transcript %}
+  <details class="card transcript-panel" style="margin-bottom:1rem; padding:1rem 1.5rem;">
+    <summary style="cursor:pointer; font-weight:600; font-size:0.9rem;">Full transcript (click any source quote to locate it here)</summary>
+    <pre class="transcript-view" id="transcript-view">{{ session.raw_transcript }}</pre>
+  </details>
+  {% endif %}
+
+  {% if high_conf_count > 0 or flagged_count > 0 %}
+  <div class="card" style="margin-bottom:1rem; display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; padding:1rem 1.5rem;">
+    {% if high_conf_count > 0 %}
+    <form method="post" action="{% url 'session_approve_high' session.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-success">Approve all high-confidence ({{ high_conf_count }})</button>
+    </form>
+    {% endif %}
+    {% if flagged_count > 0 %}
+    <span class="badge badge-warning">{{ flagged_count }} flagged for closer review</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div id="ticket-list">
+    {% for ticket in tickets %}
+      {% include "tickets/partials/card.html" with has_transcript=has_transcript %}
+    {% empty %}
+    <div class="card empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+      <p>No action items were found in this meeting.</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if approved_count > 0 %}
+  <div class="push-bar">
+    <div class="container-wide push-bar-inner">
+      <div>
+        <strong>{{ approved_count }}</strong> ticket{{ approved_count|pluralize }} approved
+        {% if pending_count %} · {{ pending_count }} still pending{% endif %}
+        {% if push_summary.create or push_summary.update %}
+        <div class="push-summary">
+          Push plan:
+          {% if push_summary.create %}{{ push_summary.create }} new{% endif %}
+          {% if push_summary.update %} · {{ push_summary.update }} update{{ push_summary.update|pluralize }}{% endif %}
+          {% if push_summary.link %} · {{ push_summary.link }} link{{ push_summary.link|pluralize }}{% endif %}
+          {% if push_summary.skip %} · {{ push_summary.skip }} skip{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <form method="post" action="{% url 'session_push' session.pk %}"
+            hx-post="{% url 'session_push' session.pk %}"
+            hx-target="#push-result"
+            hx-swap="innerHTML">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">Push approved tickets ({{ approved_count }})</button>
+      </form>
+    </div>
+  </div>
+  <div id="push-result"></div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if session.status == 'processing' %}
+<script>
+setTimeout(function () {
+  const hint = document.getElementById('slow-hint');
+  if (hint) hint.classList.remove('hidden');
+}, 18000);
+
+document.body.addEventListener('htmx:afterRequest', function (evt) {
+  if (evt.detail.elt.id !== 'status-poller') return;
+  try {
+    const data = JSON.parse(evt.detail.xhr.responseText);
+    if (data.status === 'ready' || data.status === 'failed') {
+      window.location.reload();
+      return;
+    }
+    const steps = Array.from(document.querySelectorAll('#steps .step'));
+    const idx = steps.findIndex(s => s.dataset.stage === data.stage);
+    steps.forEach((s, i) => {
+      s.classList.toggle('done', idx >= 0 && i < idx);
+      s.classList.toggle('active', i === idx || (idx === -1 && i === 0));
+    });
+    document.getElementById('stage-detail').textContent = data.detail || '';
+  } catch (e) {}
+});
+</script>
+{% endif %}
+{% if has_transcript %}
+<script>
+function highlightQuote(quote) {
+  const el = document.getElementById('transcript-view');
+  if (!el || !quote) return;
+  el.closest('details').open = true;
+  const text = el.textContent;
+  const idx = text.toLowerCase().indexOf(quote.toLowerCase().slice(0, 40));
+  if (idx >= 0) {
+    el.innerHTML = text.slice(0, idx) + '<mark>' + text.slice(idx, idx + quote.length) + '</mark>' + text.slice(idx + quote.length);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+</script>
+{% endif %}
+{% endblock %}

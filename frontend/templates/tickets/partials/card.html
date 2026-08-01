@@ -1,0 +1,116 @@
+<div class="card ticket-card {{ ticket.status }} tier-{{ ticket.confidence_tier }}{% if ticket.needs_review %} needs-review{% endif %}" id="ticket-{{ ticket.pk }}">
+  <div class="ticket-header">
+    <h3>{{ ticket.title }}</h3>
+    <div class="ticket-badges">
+      <span class="badge badge-confidence-{{ ticket.confidence_tier }}" title="{{ ticket.confidence_reason }}">
+        {{ ticket.confidence_percent }}%
+      </span>
+      {% if not ticket.grounded %}
+      <span class="badge badge-warning">Unverified quote</span>
+      {% endif %}
+      <span class="badge badge-priority-{{ ticket.priority }}">{{ ticket.priority }}</span>
+      <span class="badge badge-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+    </div>
+  </div>
+
+  {% if ticket.matched_issue_key and ticket.match_action != 'create_new' %}
+  <div class="match-suggestion">
+    <strong>Backlog match:</strong>
+    {{ ticket.get_match_action_display }} &rarr; <code>{{ ticket.matched_issue_key }}</code>
+    {% if ticket.match_reason %}<span class="match-reason">· {{ ticket.match_reason }}</span>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="source-quote"{% if has_transcript %} onclick="highlightQuote('{{ ticket.source_quote|escapejs }}')" style="cursor:pointer;" title="Click to find in transcript"{% endif %}>
+    <strong>Source quote</strong>
+    "{{ ticket.source_quote }}"
+  </div>
+
+  {% if ticket.status != 'discarded' %}
+  <form id="form-{{ ticket.pk }}">
+    {% csrf_token %}
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" name="title" value="{{ ticket.title }}">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea name="description" style="min-height:90px;">{{ ticket.description }}</textarea>
+    </div>
+    <div class="ticket-fields">
+      <div class="form-group" style="margin:0;">
+        <label>Assignee</label>
+        <input type="text" name="assignee" value="{{ ticket.assignee }}" placeholder="Name from meeting">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Due date</label>
+        <input type="date" name="due_date" value="{{ ticket.due_date|date:'Y-m-d' }}">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Priority</label>
+        <select name="priority">
+          <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>High</option>
+          <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>Medium</option>
+          <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Backlog action</label>
+        <select name="match_action">
+          {% for value, label in ticket.MATCH_CHOICES %}
+          <option value="{{ value }}" {% if ticket.match_action == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button type="button" class="btn btn-success"
+              hx-post="{% url 'ticket_approve' ticket.pk %}"
+              hx-include="#form-{{ ticket.pk }}"
+              hx-target="#ticket-{{ ticket.pk }}"
+              hx-swap="outerHTML">Approve</button>
+      <button type="button" class="btn btn-secondary"
+              hx-post="{% url 'ticket_edit' ticket.pk %}"
+              hx-include="#form-{{ ticket.pk }}"
+              hx-target="#ticket-{{ ticket.pk }}"
+              hx-swap="outerHTML">Quick save</button>
+      <button type="button" class="btn btn-ghost" onclick="toggleReextract({{ ticket.pk }})">Re-extract</button>
+      <button type="button" class="btn btn-danger"
+              hx-post="{% url 'ticket_discard' ticket.pk %}"
+              hx-target="#ticket-{{ ticket.pk }}"
+              hx-swap="outerHTML">Discard</button>
+    </div>
+  </form>
+
+  <div id="reextract-{{ ticket.pk }}" class="reextract-panel hidden">
+    <form hx-post="{% url 'ticket_reextract' ticket.pk %}"
+          hx-target="#ticket-{{ ticket.pk }}"
+          hx-swap="outerHTML">
+      {% csrf_token %}
+      <div class="form-group">
+        <label>Select transcript slice to re-extract</label>
+        <textarea name="slice_text" placeholder="Paste the relevant portion of the transcript…">{{ ticket.source_quote }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Re-run extraction</button>
+    </form>
+  </div>
+  {% else %}
+  <p style="color:var(--text-muted); font-size:0.875rem;">This item was discarded.</p>
+  {% endif %}
+
+  {% if ticket.tracker_issue_key %}
+  <p style="margin-top:0.75rem; font-size:0.875rem; color:var(--success); font-weight:600;">
+    Pushed &rarr; {{ ticket.tracker_issue_key }}
+  </p>
+  {% endif %}
+  {% if ticket.push_error %}
+  <p style="margin-top:0.75rem; font-size:0.875rem; color:var(--danger);">Push error: {{ ticket.push_error }}</p>
+  {% endif %}
+</div>
+
+<script>
+function toggleReextract(id) {
+  document.getElementById('reextract-' + id).classList.toggle('hidden');
+}
+</script>

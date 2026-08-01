@@ -1,0 +1,30 @@
+- id: standup_weekly
+  description: Weekly standup with clear commitments and some chatter
+  transcript_file: standup_weekly.txt
+  expected_titles:
+    - send api documentation
+    - schedule client demo
+    - prepare demo deck
+    - migrate staging database
+    - set up migration scripts
+  min_tickets: 3
+  max_tickets: 8
+
+- id: sprint_planning
+  description: Sprint planning with decision reversal (Mongo -> Postgres)
+  transcript_file: sprint_planning.txt
+  expected_titles:
+    - create invoice tables
+    - build stripe webhook
+    - draft test plan
+    - email legal
+  min_tickets: 3
+  max_tickets: 7
+
+- id: chatter_heavy
+  description: Mostly chatter with one real commitment
+  transcript_file: chatter_heavy.txt
+  expected_titles:
+    - send contract draft
+  min_tickets: 1
+  max_tickets: 2
